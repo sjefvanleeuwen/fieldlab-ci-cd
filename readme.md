@@ -8,7 +8,7 @@ For the CI/CD pipeline the fieldlab uses gitlab. We will install a selfhosted la
 
 ## Setup the K8S cluster
 
-This is described in the following section: [k8s-cluster]()
+This is described in the following section: [k8s-cluster](./k8s-cluster/readme.md)
 
 ## Install Helm
 
