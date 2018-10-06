@@ -1,96 +1,104 @@
-# Kubernetes on Ubuntu LXD
+# Continous integration and deployment
 
-This tutorial functions as a walkthrough in setting up a kubernetes cluster on Ubuntu LXD running on virtualbox using Vagrant to get things up and running quickly and effortlessly for development purposes and as a possible step towards a production ready **on premise** cluster.
+For the CI/CD pipeline the fieldlab uses gitlab. We will install a selfhosted lab on kubernetes. This site describes how the environment is setup. The main tools that are used for installation are:
 
-# Vagrant
+* Vagrant
+* Kubectl (kubernetes)
+* HELM (charts)
 
-With Vagrant you can distribute development environments on Virtualbox, but can also work with VMWare, Openstack and Docker, AWS or any other provider. 
+## Setup the K8S cluster
 
-## Get started
+This is described in the following section: [k8s-cluster]()
 
-To get started with virtualbox and vagrant, first intall them using:
+## Install Helm
 
-```
-$ sudo apt install virtualbox
-$ sudo apt install vagrant
-```
+To install the cluster make sure you have HELM installed. We will be using HELM as our packagemanager for Kubernetes. You can install Helm using snap. Tested on KDE (Kubuntu 18.04)
 
-### Install Ubuntu LXD
-
-We are going to use Official Ubuntu 18.0.4 LTS (Bionic Beaver) Daily build.
+For more information on HELM, Get started with the [Quick Start guide](https://docs.helm.sh/using_helm/#quickstart-guide) or plunge into the [complete documentation](https://docs.helm.sh/)
 
 ```
-$ vagrant init ubuntu/bionic64
-$ vagrant up
+$ sudo snap install helm
 ```
-
-This will result in downloading and running a virtual machine in virtual box within a couple of minutes depending on the speed of your connection.
-
-SSH into the machine with vagrant SSH.
+This wil install helm client latest version. If you get an error such as below, during further operation with helm while setting up your postgresql cluster:
 
 ```
-$ vagrant ssh
+incompatible versions client[v2.11.0] server[v2.10.0]
 ```
 
-Setup LXD
+Then upgrade the helm server version (Tiller) to the latest version and reinitialize for a ready tiller pod as follows:
 
 ```
-vagrant@ubuntu-bionic:~$ sudo apt-get install lxd
-vagrant@ubuntu-bionic:~$ sudo lxd init
+$ helm init --upgrade
+$HELM_HOME has been configured at /home/**********/.helm.
+Tiller (the Helm server-side component) has been upgraded to the current version.
+Happy Helming!
 
+$ helm init
 ```
 
-### Setting up the Kubernetes cluster
+## Deploying Gitlab
 
-## Before you begin
+### Helm Chart
 
-From the Virtualbox machine install conjure-up. This lets your symmon up a big software stack. You can find more information on conjure-up from https://conjure-up.io
+After setting up the K8S cluster we are ready to deploy gitlab using the provided helm chart.
 
-```
-vagrant@ubuntu-bionic:~$ sudo snap install conjure-up --classic
-```
+This chart contains all the required components to get started, and can scale to large deployments. It offers a number of benefits:
 
-Now add the current user to the lxd user group.
+* Horizontal scaling of individual components
+* No requirement for shared storage to scale
+* Containers do not need root permissions
+* Automatic SSL with Let's Encrypt
+* An unprivileged GitLab Runner
+* and plenty more.
 
-```
-vagrant@ubuntu-bionic:~$ sudo usermod -a -G lxd $(whoami)
-```
+For more information please visit [Gitlab Helm Chart](https://docs.gitlab.com/ee/install/kubernetes/gitlab_chart.html) 
 
-## Deploying Kubernetes
+### Deploy to Kubernetes
 
-You can start the deployment with:
+A Kubernetes cluster, version 1.8 or higher. 6vCPU and 16GB of RAM is recommended.
 
-```
-vagrant@ubuntu-bionic:~$ conjure-up kubernetes
-```
+SSH into your, previously setup vagrant deployed virtualbox. Note that we have renamed the virtual box to *k8s-lxd*.
 
-1. You can now cast a "spell", we are going to setup a MicroK8s, a small single node kubernetes cluster. In a later exercise we will do a minimal kubernetes core distribution, for now lets keep things simple. (the first screenshot shows execution from bash in visual studio)
+To make things easier in our network topology, we create a vboxnet0 in OracleVM Virtualbox manager.
 
-![conjure-k8s-1](./img/conjure-kubernetes-1.png)
+![vboxnet0](./img/vboxnet0.png)
 
+Now set your vagrant deployment adapter settings to use vboxnet0.
 
-2. Enter your sudo password as indicated. (the vagrant distribution does not require a password)
+![vboxnet0](./img/adapter-settings.png)
 
-3. After a minute or so the microK8s cluster is installed and deployed. Press Q to exit
+Check network connectivity from your local machine running virtualbox.
 
-![conjure-k8s-2](./img/conjure-kubernetes-2.png)
-
-Microk8s is installed and can be accessed via 'microk8s.kubectl'. To use kubectl please install it.
-
-```
-vagrant@ubuntu-bionic:~$ sudo snap install kubectl --classic
-```
-
-You can now list the nodes and services.
+```bash
+$ ping 192.168.56.101
+PING 192.168.56.101 (192.168.56.101) 56(84) bytes of data.
+64 bytes from 192.168.56.101: icmp_seq=1 ttl=64 time=0.613 ms
 
 ```
-vagrant@ubuntu-bionic:~$ kubectl get services
-NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
-kubernetes   ClusterIP   10.152.183.1   <none>        443/TCP   6m23s
+Now set the context of the cluster so you can access it.
 
-vagrant@ubuntu-bionic:~$ microk8s.kubectl get nodes
-NAME            STATUS   ROLES    AGE     VERSION
-ubuntu-bionic   Ready    <none>   7m45s   v1.12.0
+```
+$ kubectl config set-cluster k8s-lxd-cluster --server=http://192.168.56.101:8080
+Cluster "k8s-lxd-cluster" set.
+
+$ kubectl config set-context k8s-lxd --cluster=k8s-lxd-cluster
+Context "k8s-lxd" created.
+
+$ kubectl config use-context k8s-lxd
+Switched to context "k8s-lxd".
+
+$ kubectl get nodes
+NAME            STATUS   ROLES    AGE   VERSION
+ubuntu-bionic   Ready    <none>   18h   v1.12.0
 ```
 
-You now have a single node kubernetes cluster up and running.
+You can now install gitlab using helm.
+
+```
+$ helm init
+$ helm upgrade --install gitlab gitlab/gitlab \
+    --timeout 600 \
+    --set global.hosts.domain=example.com \
+    --set global.hosts.externalIP=192.168.56.101 \
+    --set certmanager-issuer.email=email@example.com
+```
