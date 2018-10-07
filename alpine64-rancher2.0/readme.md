@@ -146,3 +146,15 @@ You can now setup Rancher 2.0 from the web browser on https://localhost:8443
 
 ![install-rancher](install-browser.png)
 
+The default password: admin
+
+Once you have set the password you can setup your cluster on the following default cloud providers:
+
+* Google Container Engine
+* Amazon EKS
+* Azure Kubernetes Service
+* Amazon EC2
+* Digital Ocean
+* VSphere
+
+You can also enable openstack if so desired from the Node Drivers.
