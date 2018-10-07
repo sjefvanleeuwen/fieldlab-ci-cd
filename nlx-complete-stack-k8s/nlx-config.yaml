@@ -1,0 +1,19 @@
+apiVersion: v1
+clusters:
+- cluster:
+    server: http://localhost:8080
+  name: development
+contexts:
+- context:
+    cluster: development
+    namespace: nlx
+    user: developer
+  name: nlx-transport
+current-context: nlx-transport
+kind: Config
+preferences: {}
+users:
+- name: developer
+  user:
+    password: some-password
+    username: dev
